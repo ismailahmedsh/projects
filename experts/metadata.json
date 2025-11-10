@@ -1,0 +1,58 @@
+{
+  "experts": [
+    {
+      "expert_id": "code_expert_v1",
+      "domain": "programming",
+      "description": "Python, JavaScript, algorithms, debugging",
+      "adapter_path": "experts/code_expert_v1",
+      "created_at": null,
+      "training_data_size": null,
+      "lora_config": {
+        "r": 16,
+        "lora_alpha": 32,
+        "target_modules": ["q_proj", "v_proj"]
+      },
+      "performance_metrics": {
+        "queries_served": 0,
+        "avg_confidence": null,
+        "avg_response_time_ms": null
+      }
+    },
+    {
+      "expert_id": "science_expert_v1",
+      "domain": "science",
+      "description": "Physics, chemistry, biology, mathematics",
+      "adapter_path": "experts/science_expert_v1",
+      "created_at": null,
+      "training_data_size": null,
+      "lora_config": {
+        "r": 16,
+        "lora_alpha": 32,
+        "target_modules": ["q_proj", "v_proj"]
+      },
+      "performance_metrics": {
+        "queries_served": 0,
+        "avg_confidence": null,
+        "avg_response_time_ms": null
+      }
+    },
+    {
+      "expert_id": "creative_expert_v1",
+      "domain": "creative_writing",
+      "description": "Storytelling, copywriting, idea generation",
+      "adapter_path": "experts/creative_expert_v1",
+      "created_at": null,
+      "training_data_size": null,
+      "lora_config": {
+        "r": 16,
+        "lora_alpha": 32,
+        "target_modules": ["q_proj", "v_proj"]
+      },
+      "performance_metrics": {
+        "queries_served": 0,
+        "avg_confidence": null,
+        "avg_response_time_ms": null
+      }
+    }
+  ]
+}

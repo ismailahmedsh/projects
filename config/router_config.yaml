@@ -1,0 +1,3 @@
+embedding_model: "sentence-transformers/all-MiniLM-L6-v2"
+classifier_model_path: "models/router_classifier.pkl"
+confidence_threshold: 0.7

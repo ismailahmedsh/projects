@@ -1,0 +1,13 @@
+__pycache__/
+*.pyc
+.env
+.venv/
+*.sqlite3
+*.db
+*.faiss
+logs/
+models/base_model/
+experts/*/checkpoints/
+.DS_Store
+.idea/
+.vscode/
