@@ -19,4 +19,6 @@ def test_query_logger_inserts_and_reads(tmp_path):
     results = list(logger.get_recent_queries())
     assert len(results) == 1
     assert results[0]["expert_used"] == "base"
+    clustering_rows = list(logger.get_queries_for_clustering())
+    assert clustering_rows[0]["embedding_id"] == 1
     logger.close()

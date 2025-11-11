@@ -62,9 +62,25 @@ class QueryLogger:
 
     def get_recent_queries(self, limit: int = 20) -> Iterable[Dict[str, Any]]:
         cursor = self._connection.execute(
-            "SELECT query_text, expert_used, confidence, timestamp FROM queries ORDER BY id DESC LIMIT ?",
+            "SELECT id, query_text, expert_used, confidence, timestamp "
+            "FROM queries ORDER BY id DESC LIMIT ?",
             (limit,),
         )
+        columns = [desc[0] for desc in cursor.description]
+        return [dict(zip(columns, row)) for row in cursor.fetchall()]
+
+    def get_queries_for_clustering(self, limit: int | None = None) -> Iterable[Dict[str, Any]]:
+        """Return queries with metadata suitable for clustering analysis."""
+
+        query = (
+            "SELECT id, query_text, expert_used, confidence, embedding_id "
+            "FROM queries ORDER BY id DESC"
+        )
+        params: tuple[Any, ...] = ()
+        if limit is not None:
+            query += " LIMIT ?"
+            params = (limit,)
+        cursor = self._connection.execute(query, params)
         columns = [desc[0] for desc in cursor.description]
         return [dict(zip(columns, row)) for row in cursor.fetchall()]
 

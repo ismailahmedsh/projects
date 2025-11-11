@@ -30,7 +30,7 @@ class ExpertManager:
                 expert_id=entry["expert_id"],
                 domain=entry.get("domain", "unknown"),
                 description=entry.get("description", ""),
-                adapter_path=self.experts_dir / Path(entry.get("adapter_path", "")),
+                adapter_path=self._resolve_adapter_path(entry.get("adapter_path", "")),
                 metadata=entry,
             )
             self._experts[expert.expert_id] = expert
@@ -47,7 +47,7 @@ class ExpertManager:
             expert_id=expert_config["expert_id"],
             domain=expert_config.get("domain", "unknown"),
             description=expert_config.get("description", ""),
-            adapter_path=self.experts_dir / Path(expert_config.get("adapter_path", "")),
+            adapter_path=self._resolve_adapter_path(expert_config.get("adapter_path", "")),
             metadata=expert_config,
         )
         self._experts[expert.expert_id] = expert
@@ -63,3 +63,12 @@ class ExpertManager:
 
     def get_expert_stats(self) -> List[Dict[str, any]]:
         return [exp.get_metadata() for exp in self._experts.values()]
+
+    def _resolve_adapter_path(self, adapter_path: str) -> Path:
+        raw_path = Path(adapter_path)
+        if not raw_path.is_absolute():
+            parts = raw_path.parts
+            if parts and parts[0] == self.experts_dir.name:
+                return self.experts_dir.joinpath(*parts[1:])
+            return self.experts_dir / raw_path
+        return raw_path
