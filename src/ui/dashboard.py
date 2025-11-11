@@ -5,6 +5,7 @@ import streamlit as st
 
 from src.models.expert_manager import ExpertManager
 from src.router.classifier import RouterClassifier
+from src.router.embedding_model import EmbeddingModel
 from src.router.router import QueryRouter
 from src.storage.query_logger import QueryLogger
 from src.ui.components.cluster_viewer import render_clusters
@@ -18,17 +19,13 @@ def main() -> None:
     st.title("Dynamic Expert System Dashboard")
 
     expert_manager = ExpertManager("experts")
-    classifier = RouterClassifier(
-        keyword_map={
-            "code": "code_expert_v1",
-            "program": "code_expert_v1",
-            "science": "science_expert_v1",
-            "physics": "science_expert_v1",
-            "story": "creative_expert_v1",
-            "write": "creative_expert_v1",
-        }
-    )
+    embedding_model = EmbeddingModel()
+    classifier = RouterClassifier(embedding_model=embedding_model)
     router = QueryRouter(classifier, expert_manager)
+    try:
+        router.retrain_classifier(samples_per_keyword=3)
+    except Exception as exc:  # pragma: no cover - UI safeguard
+        st.warning(f"Router classifier training skipped: {exc}")
     query_logger = QueryLogger("data/queries.db")
 
     with st.sidebar:
