@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, Legend,
@@ -18,7 +18,32 @@ const fmt = (n) => (isFinite(n) ? Math.round(n).toLocaleString("en-US") : "—")
 const fmtK = (n) => (Math.abs(n) >= 1000 ? Math.round(n / 1000) + "k" : Math.round(n));
 const MO = ["", "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
-const RATE = 4.35, BAL0 = 799326.27, INSTALLMENT = 5674;
+// Local-only persistence: real figures live in the browser, never in the bundle.
+const LS_KEY = "portfolio-plan-v1";
+const loadSaved = () => {
+  try { return JSON.parse(localStorage.getItem(LS_KEY) || "{}") || {}; }
+  catch { return {}; }
+};
+
+// Generic example defaults — replace them in the app; your entries persist locally.
+const CF_DEFAULTS = {
+  salary: 30000, rentIncome: 5000, myRent: 4000, serviceCharge: 1000,
+  living: 10000, currentCash: 100000, floor: 50000, eqRate: 8.0,
+  rate: 4.0, bal0: 500000, installment: 4000,
+};
+
+// total interest paid on the original schedule with no extra payments
+function baselineInterest(bal0, rate, installment) {
+  let bal = bal0, i = rate / 100 / 12, interest = 0;
+  for (let m = 0; m < 1200 && bal > 0.5; m++) {
+    const intr = bal * i; interest += intr;
+    let pr = installment - intr;
+    if (pr <= 0) return interest; // installment never amortizes the loan
+    if (pr > bal) pr = bal;
+    bal -= pr;
+  }
+  return interest;
+}
 
 // instant-access (eSaver-style) tiered rates, % p.a. by balance
 function flexRate(bal) {
@@ -36,11 +61,11 @@ const PRESETS = {
 };
 
 function simulate(p) {
-  const { surplus, spare, mPct, ePct, eqRate, flexShare, ladderRate, horizonYear } = p;
+  const { surplus, spare, mPct, ePct, eqRate, flexShare, ladderRate, horizonYear, rate, bal0, installment } = p;
   const HORIZON = (horizonYear - 2026) * 12; // lands on June of the selected year
-  const i = RATE / 100 / 12, de = eqRate / 100 / 12, dl = ladderRate / 100 / 12;
+  const i = rate / 100 / 12, de = eqRate / 100 / 12, dl = ladderRate / 100 / 12;
   const mFrac = mPct / 100, eRatio = ePct / 100, fShare = flexShare / 100;
-  let bal = BAL0, sleeve = 0, flex = 0, ladder = 0, equity = 0;
+  let bal = bal0, sleeve = 0, flex = 0, ladder = 0, equity = 0;
   let interest = 0, fees = 0, paid = false, payoffLabel = null;
 
   // deploy spare now
@@ -55,13 +80,13 @@ function simulate(p) {
     mo++; if (mo > 12) { mo = 1; y++; }
     if (bal > 0) {
       const intr = bal * i; interest += intr;
-      let pr = INSTALLMENT - intr; if (pr > bal) pr = bal; bal -= pr;
+      let pr = installment - intr; if (pr > bal) pr = bal; bal -= pr;
     }
     const savIn = paid
-      ? (surplus * mFrac + INSTALLMENT) * (1 - eRatio)
+      ? (surplus * mFrac + installment) * (1 - eRatio)
       : surplus * (1 - mFrac) * (1 - eRatio);
     const eqIn = paid
-      ? (surplus * mFrac + INSTALLMENT) * eRatio
+      ? (surplus * mFrac + installment) * eRatio
       : surplus * (1 - mFrac) * eRatio;
     if (!paid) sleeve += surplus * mFrac;
     flex += savIn * fShare;
@@ -101,29 +126,36 @@ function simulate(p) {
 }
 
 export default function Plan() {
-  const [cf, setCf] = useState({
-    salary: 52184, rentIncome: 7500, myRent: 5000, serviceCharge: 1450,
-    living: 15500, currentCash: 140000, floor: 50000, eqRate: 8.0,
-  });
+  const saved0 = loadSaved();
+  const [cf, setCf] = useState({ ...CF_DEFAULTS, ...(saved0.cf || {}) });
   const [active, setActive] = useState("");
-  const [mPct, setMPct] = useState(PRESETS.Balanced.m);
-  const [ePct, setEPct] = useState(10);
+  const [mPct, setMPct] = useState(saved0.mPct ?? PRESETS.Balanced.m);
+  const [ePct, setEPct] = useState(saved0.ePct ?? 10);
   // savings sleeve detail
-  const [flexShare, setFlexShare] = useState(40);
-  const [horizonYear, setHorizonYear] = useState(2037);
+  const [flexShare, setFlexShare] = useState(saved0.flexShare ?? 40);
+  const [horizonYear, setHorizonYear] = useState(saved0.horizonYear ?? 2037);
   const [showSav, setShowSav] = useState(true);
-  const [docTitle, setDocTitle] = useState('Payoff + Portfolio Plan');
+  const [docTitle, setDocTitle] = useState(saved0.docTitle ?? 'Payoff + Portfolio Plan');
 
   const [showCharts, setShowCharts] = useState(true);
   const [showTable, setShowTable] = useState(true);
-  const [w12, setW12] = useState(50), [w24, setW24] = useState(25), [w36, setW36] = useState(25);
-  const [r12, setR12] = useState(3.95), [r24, setR24] = useState(4.1), [r36, setR36] = useState(4.4);
+  const [w12, setW12] = useState(saved0.w12 ?? 50), [w24, setW24] = useState(saved0.w24 ?? 25), [w36, setW36] = useState(saved0.w36 ?? 25);
+  const [r12, setR12] = useState(saved0.r12 ?? 3.95), [r24, setR24] = useState(saved0.r24 ?? 4.1), [r36, setR36] = useState(saved0.r36 ?? 4.4);
+
+  // persist everything the user tweaks to their browser only
+  useEffect(() => {
+    try {
+      localStorage.setItem(LS_KEY, JSON.stringify({
+        cf, mPct, ePct, flexShare, horizonYear, docTitle, w12, w24, w36, r12, r24, r36,
+      }));
+    } catch { /* storage unavailable — ignore */ }
+  }, [cf, mPct, ePct, flexShare, horizonYear, docTitle, w12, w24, w36, r12, r24, r36]);
 
   const pick = (k) => { setActive(k); setMPct(PRESETS[k].m); setEPct(PRESETS[k].e); };
   const setF = (k) => (e) => { const v = parseFloat(e.target.value); setCf((s) => ({ ...s, [k]: isNaN(v) ? 0 : v })); };
 
   const income = cf.salary + cf.rentIncome;
-  const outgo = cf.myRent + INSTALLMENT + cf.serviceCharge + cf.living;
+  const outgo = cf.myRent + cf.installment + cf.serviceCharge + cf.living;
   const surplus = income - outgo;
   const spare = Math.max(0, cf.currentCash - cf.floor);
 
@@ -133,9 +165,11 @@ export default function Plan() {
   const sim = useMemo(() => simulate({
     surplus: Math.max(0, surplus), spare, mPct, ePct,
     eqRate: cf.eqRate, flexShare, ladderRate, horizonYear,
-  }), [surplus, spare, mPct, ePct, cf.eqRate, flexShare, ladderRate, horizonYear]);
+    rate: cf.rate, bal0: cf.bal0, installment: cf.installment,
+  }), [surplus, spare, mPct, ePct, cf.eqRate, flexShare, ladderRate, horizonYear, cf.rate, cf.bal0, cf.installment]);
 
-  const saved = 321418 - sim.interest;
+  const baseline = useMemo(() => baselineInterest(cf.bal0, cf.rate, cf.installment), [cf.bal0, cf.rate, cf.installment]);
+  const saved = baseline - sim.interest;
   const Hm = (horizonYear - 2026) * 12;
   const spareSav = spare * Math.pow(1 + ladderRate / 100 / 12, Hm);
   const spareEq = spare * Math.pow(1 + cf.eqRate / 100 / 12, Hm);
@@ -148,7 +182,7 @@ export default function Plan() {
     ["Salary", cf.salary, "in", "salary"],
     ["Property rent", cf.rentIncome, "in", "rentIncome"],
     ["Your rent", cf.myRent, "out", "myRent"],
-    ["Mortgage installment", INSTALLMENT, "out", null],
+    ["Mortgage installment", cf.installment, "out", "installment"],
     ["Service charge", cf.serviceCharge, "out", "serviceCharge"],
     ["Living expenses", cf.living, "out", "living"],
   ];
@@ -214,6 +248,16 @@ export default function Plan() {
                 <label style={{ flex: 1 }}>
                   <span style={{ fontSize: 10.5, color: MUTE, display: "block", marginBottom: 3 }}>Emergency fund (kept liquid)</span>
                   <input type="number" value={cf.floor} onChange={setF("floor")} style={{ width: "100%", padding: "5px 8px", border: `1px solid ${LINE}`, borderRadius: 6, background: CREAM, fontFamily: "'IBM Plex Mono',monospace", fontSize: 12.5, color: INK }} />
+                </label>
+              </div>
+              <div className="cash-fields" style={{ display: "flex", gap: 8, marginTop: 8 }}>
+                <label style={{ flex: 1 }}>
+                  <span style={{ fontSize: 10.5, color: MUTE, display: "block", marginBottom: 3 }}>Mortgage balance</span>
+                  <input type="number" value={cf.bal0} onChange={setF("bal0")} style={{ width: "100%", padding: "5px 8px", border: `1px solid ${LINE}`, borderRadius: 6, background: CREAM, fontFamily: "'IBM Plex Mono',monospace", fontSize: 12.5, color: INK }} />
+                </label>
+                <label style={{ flex: 1 }}>
+                  <span style={{ fontSize: 10.5, color: MUTE, display: "block", marginBottom: 3 }}>Mortgage rate (% p.a.)</span>
+                  <input type="number" step="0.05" value={cf.rate} onChange={setF("rate")} style={{ width: "100%", padding: "5px 8px", border: `1px solid ${LINE}`, borderRadius: 6, background: CREAM, fontFamily: "'IBM Plex Mono',monospace", fontSize: 12.5, color: INK }} />
                 </label>
               </div>
               <div style={{ fontSize: 11, color: MUTE, marginTop: 8 }}>{fmt(spare)} deployable now (cash minus emergency fund). If it all went to one place, by June {horizonYear}:</div>
